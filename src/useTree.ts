@@ -1,18 +1,18 @@
 import { useCallback, useState } from 'react'
-import { CheckedNodeStatus, getAllCheckedNodes } from './get-all-checked-nodes/get-all-checked-nodes'
-import { getAllChildrenNodes, getChildrenNodesValues } from './get-children-nodes-values/get-children-nodes-values'
-import { memoizedIsNodeChecked } from './is-node-checked/is-node-checked'
-import { memoizedIsNodeIndeterminate } from './is-node-indeterminate/is-node-indeterminate'
-import type { TreeNodeData } from './Tree'
+import { CheckedNodeStatus, getAllCheckedNodes } from './utils/getAllCheckedNodes'
+import { getAllChildrenNodes, getAllLeafNodes, getChildrenNodesValues } from './utils/getChildrenNodesValues'
+import { memoizedIsNodeChecked } from './utils/isNodeChecked'
+import { memoizedIsNodeIndeterminate } from './utils/isNodeIndeterminate'
+import type { TreeNodeData } from './types'
 
 export type TreeExpandedState = Record<string, boolean>
 
 function getInitialTreeExpandedState(
   initialState: TreeExpandedState,
   data: TreeNodeData[],
-  value: string | string[] | undefined,
+  value: string | undefined,
   acc: TreeExpandedState = {},
-) {
+): TreeExpandedState {
   data.forEach((node) => {
     acc[node.value] = node.value in initialState ? initialState[node.value] : node.value === value
 
@@ -24,21 +24,7 @@ function getInitialTreeExpandedState(
   return acc
 }
 
-export function getTreeExpandedState(data: TreeNodeData[], expandedNodesValues: string[] | '*') {
-  const state = getInitialTreeExpandedState({}, data, [])
-
-  if (expandedNodesValues === '*') {
-    return Object.keys(state).reduce((acc, key) => ({ ...acc, [key]: true }), {})
-  }
-
-  expandedNodesValues.forEach((node) => {
-    state[node] = true
-  })
-
-  return state
-}
-
-function getInitialCheckedState(initialState: string[], data: TreeNodeData[]) {
+function getInitialCheckedState(initialState: string[], data: TreeNodeData[]): string[] {
   const acc: string[] = []
 
   initialState.forEach((node) => acc.push(...getChildrenNodesValues(node, data)))
@@ -47,124 +33,81 @@ function getInitialCheckedState(initialState: string[], data: TreeNodeData[]) {
 }
 
 export interface UseTreeInput {
-  /** Initial expanded state of all nodes */
+  /** 초기 확장된 노드 상태 */
   initialExpandedState?: TreeExpandedState
-
-  /** Initial selected state of nodes */
-  initialSelectedState?: string[]
-
-  /** Initial checked state of nodes */
+  /** 초기 선택된 노드 값 */
+  initialSelectedState?: string
+  /** 초기 체크된 노드 상태 */
   initialCheckedState?: string[]
-
-  /** Determines whether multiple node can be selected at a time */
-  multiple?: boolean
-
-  /** Called with the node value when it is expanded */
+  /** 노드 확장 시 콜백 */
   onNodeExpand?: (value: string) => void
-
-  /** Called with the node value when it is collapsed */
+  /** 노드 축소 시 콜백 */
   onNodeCollapse?: (value: string) => void
+  /** 체크 시 부모 노드를 checkedState에 포함할지 여부 */
+  includeParentInCheckedState?: boolean
 }
 
 export interface UseTreeReturnType {
-  /** Determines whether multiple node can be selected at a time */
-  multiple: boolean
-
-  /** A record of `node.value` and boolean values that represent nodes expanded state */
+  /** 확장된 노드 상태 */
   expandedState: TreeExpandedState
-
-  /** An array of selected nodes values */
-  selectedState: string[]
-
-  /** An array of checked nodes values */
+  /** 선택된 노드 값 */
+  selectedState: string
+  /** 체크된 노드 값 배열 */
   checkedState: string[]
 
-  /** A value of the node that was last clicked
-   * Anchor node is used to determine range of selected nodes for multiple selection
-   */
-  anchorNode: string | null
-
-  /** Initializes tree state based on provided data, called automatically by the Tree component */
+  /** 트리 데이터 초기화 */
   initialize: (data: TreeNodeData[]) => void
-
-  /** Toggles expanded state of the node with provided value */
+  /** 노드 확장/축소 토글 */
   toggleExpanded: (value: string) => void
-
-  /** Collapses node with provided value */
+  /** 노드 축소 */
   collapse: (value: string) => void
-
-  /** Expands node with provided value */
+  /** 노드 확장 */
   expand: (value: string) => void
-
-  /** Expands all nodes */
+  /** 모든 노드 확장 */
   expandAllNodes: () => void
-
-  /** Collapses all nodes */
+  /** 모든 노드 축소 */
   collapseAllNodes: () => void
-
-  /** Sets expanded state */
+  /** 확장된 노드 상태 설정 */
   setExpandedState: React.Dispatch<React.SetStateAction<TreeExpandedState>>
 
-  /** Toggles selected state of the node with provided value */
-  toggleSelected: (value: string) => void
-
-  /** Selects node with provided value */
+  /** 노드 선택 */
   select: (value: string) => void
-
-  /** Deselects node with provided value */
+  /** 노드 선택 해제 */
   deselect: (value: string) => void
+  /** 선택된 노드 상태 설정 */
+  setSelectedState: React.Dispatch<React.SetStateAction<string>>
 
-  /** Clears selected state */
-  clearSelected: () => void
-
-  /** Sets selected state */
-  setSelectedState: React.Dispatch<React.SetStateAction<string[]>>
-
-  /** A value of the node that is currently hovered */
-  hoveredNode: string | null
-
-  /** Sets hovered node */
-  setHoveredNode: React.Dispatch<React.SetStateAction<string | null>>
-
-  /** Checks node with provided value */
+  /** 노드 체크 */
   checkNode: (value: string) => void
-
-  /** Unchecks node with provided value */
+  /** 노드 체크 해제 */
   uncheckNode: (value: string) => void
-
-  /** Checks all nodes */
+  /** 모든 노드 체크 */
   checkAllNodes: () => void
-
-  /** Unchecks all nodes */
+  /** 모든 노드 체크 해제 */
   uncheckAllNodes: () => void
-
-  /** Sets checked state */
+  /** 체크된 노드 상태 설정 */
   setCheckedState: React.Dispatch<React.SetStateAction<string[]>>
 
-  /** Returns all checked nodes with status */
+  /** 체크된 노드 정보 가져오기 */
   getCheckedNodes: () => CheckedNodeStatus[]
-
-  /** Returns `true` if node with provided value is checked */
+  /** 노드 체크 여부 확인 */
   isNodeChecked: (value: string) => boolean
-
-  /** Returns `true` if node with provided value is indeterminate */
+  /** 노드 부분 체크 여부 확인 */
   isNodeIndeterminate: (value: string) => boolean
 }
 
 export function useTree({
-  initialSelectedState = [],
+  initialSelectedState,
   initialCheckedState = [],
   initialExpandedState = {},
-  multiple = false,
   onNodeCollapse,
   onNodeExpand,
+  includeParentInCheckedState,
 }: UseTreeInput = {}): UseTreeReturnType {
   const [data, setData] = useState<TreeNodeData[]>([])
-  const [expandedState, setExpandedState] = useState(initialExpandedState)
-  const [selectedState, setSelectedState] = useState(initialSelectedState)
-  const [checkedState, setCheckedState] = useState(initialCheckedState)
-  const [anchorNode, setAnchorNode] = useState<string | null>(null)
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const [expandedState, setExpandedState] = useState<TreeExpandedState>(initialExpandedState)
+  const [selectedState, setSelectedState] = useState<string>(initialSelectedState || '')
+  const [checkedState, setCheckedState] = useState<string[]>(initialCheckedState)
 
   const initialize = useCallback(
     (_data: TreeNodeData[]) => {
@@ -172,7 +115,7 @@ export function useTree({
       setCheckedState((current) => getInitialCheckedState(current, _data))
       setData(_data)
     },
-    [selectedState, checkedState],
+    [selectedState],
   )
 
   const toggleExpanded = useCallback(
@@ -192,7 +135,6 @@ export function useTree({
         if (current[value] !== false) {
           onNodeCollapse?.(value)
         }
-
         return { ...current, [value]: false }
       })
     },
@@ -205,7 +147,6 @@ export function useTree({
         if (current[value] !== true) {
           onNodeExpand?.(value)
         }
-
         return { ...current, [value]: true }
       })
     },
@@ -218,7 +159,6 @@ export function useTree({
       Object.keys(next).forEach((key) => {
         next[key] = true
       })
-
       return next
     })
   }, [])
@@ -229,57 +169,30 @@ export function useTree({
       Object.keys(next).forEach((key) => {
         next[key] = false
       })
-
       return next
     })
   }, [])
 
-  const toggleSelected = useCallback(
-    (value: string) =>
-      setSelectedState((current) => {
-        if (!multiple) {
-          if (current.includes(value)) {
-            setAnchorNode(null)
-            return []
-          }
-
-          setAnchorNode(value)
-          return [value]
-        }
-
-        if (current.includes(value)) {
-          setAnchorNode(null)
-          return current.filter((item) => item !== value)
-        }
-
-        setAnchorNode(value)
-
-        return [...current, value]
-      }),
-    [],
-  )
-
   const select = useCallback((value: string) => {
-    setAnchorNode(value)
-    setSelectedState((current) => (multiple ? (current.includes(value) ? current : [...current, value]) : [value]))
+    setSelectedState(value)
   }, [])
 
-  const deselect = useCallback((value: string) => {
-    anchorNode === value && setAnchorNode(null)
-    setSelectedState((current) => current.filter((item) => item !== value))
-  }, [])
-
-  const clearSelected = useCallback(() => {
-    setSelectedState([])
-    setAnchorNode(null)
+  const deselect = useCallback(() => {
+    setSelectedState('')
   }, [])
 
   const checkNode = useCallback(
     (value: string) => {
       const checkedNodes = getChildrenNodesValues(value, data)
-      setCheckedState((current) => Array.from(new Set([...current, ...checkedNodes])))
+      setCheckedState((current) => {
+        const newCheckedState = Array.from(new Set([...current, ...checkedNodes]))
+        if (includeParentInCheckedState) {
+          newCheckedState.push(value) // 부모 노드도 checkedState에 포함
+        }
+        return newCheckedState
+      })
     },
-    [data],
+    [data, includeParentInCheckedState],
   )
 
   const uncheckNode = useCallback(
@@ -291,23 +204,27 @@ export function useTree({
   )
 
   const checkAllNodes = useCallback(() => {
-    setCheckedState(() => getAllChildrenNodes(data))
-  }, [data])
+    if (includeParentInCheckedState) {
+      setCheckedState(() => getAllChildrenNodes(data))
+    } else {
+      setCheckedState(() => getAllLeafNodes(data))
+    }
+  }, [data, includeParentInCheckedState])
 
   const uncheckAllNodes = useCallback(() => {
     setCheckedState([])
   }, [])
 
-  const getCheckedNodes = () => getAllCheckedNodes(data, checkedState).result
-  const isNodeChecked = (value: string) => memoizedIsNodeChecked(value, data, checkedState)
-  const isNodeIndeterminate = (value: string) => memoizedIsNodeIndeterminate(value, data, checkedState)
+  const getCheckedNodes = useCallback(() => getAllCheckedNodes(data, checkedState).result, [data, checkedState])
+
+  const isNodeChecked = useCallback((value: string) => memoizedIsNodeChecked(value, data, checkedState), [data, checkedState])
+
+  const isNodeIndeterminate = useCallback((value: string) => memoizedIsNodeIndeterminate(value, data, checkedState), [data, checkedState])
 
   return {
-    multiple,
     expandedState,
     selectedState,
     checkedState,
-    anchorNode,
     initialize,
 
     toggleExpanded,
@@ -317,24 +234,18 @@ export function useTree({
     collapseAllNodes,
     setExpandedState,
 
+    select,
+    deselect,
+    setSelectedState,
+
     checkNode,
     uncheckNode,
     checkAllNodes,
     uncheckAllNodes,
     setCheckedState,
 
-    toggleSelected,
-    select,
-    deselect,
-    clearSelected,
-    setSelectedState,
-
-    hoveredNode,
-    setHoveredNode,
     getCheckedNodes,
     isNodeChecked,
     isNodeIndeterminate,
   }
 }
-
-export type TreeController = ReturnType<typeof useTree>

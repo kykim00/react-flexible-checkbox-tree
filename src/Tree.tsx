@@ -4,6 +4,7 @@ import { FlatNode, TNode, TreeProps } from './types'
 import TreeNode from './TreeNode'
 import NodeModel from './NodeModel'
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
+import { memoizedFlattenNodes } from './flattenNodes.ts'
 
 /**
  *
@@ -39,9 +40,14 @@ import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
  */
 
 export const Tree = forwardRef<HTMLUListElement, TreeProps<number>>((props, ref) => {
-  const [model, setModel] = useState(getNewModel())
   const [prevNodes, setPrevNodes] = useState<TNode[] | null>(null)
   const nodes = prevNodes ?? props.nodes
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error
+  const flatNodes = useMemo(() => memoizedFlattenNodes(nodes, {}, 1), [nodes])
+
+  const [model, setModel] = useState(getNewModel())
 
   function getNewModel() {
     const newModel = new NodeModel(props)
@@ -195,191 +201,118 @@ export const Tree = forwardRef<HTMLUListElement, TreeProps<number>>((props, ref)
     return model.getChildrenCount(id)
   }
 
-  const visibleNodes = useMemo(() => {
-    const visibleNodes: FlatNode[] = []
+  const calculatePaddingLeft = (node: FlatNode) => {
+    const basePadding = 12
+    let indent = 0
 
-    const checkVisibility = (node: FlatNode) => {
-      visibleNodes.push(node)
-      const isExpanded = expanded.includes(node.id)
-      if (node.children && node.children.length > 0 && isExpanded) {
-        node.children.forEach((child) => {
-          checkVisibility(child)
-        })
-      }
+    if (!node.isParent) {
+      indent += 20
     }
 
-    const flatNodes = model.getAllNodes()
-    const rootNodes = flatNodes.filter((node) => node.treeDepth === 1)
-
-    rootNodes.forEach((node) => {
-      checkVisibility(node)
-    })
-
-    return visibleNodes
-  }, [expanded])
-
-  const moveCursor = useCallback(
-    (direction: 'up' | 'down') => {
-      const currentIndex = visibleNodes.findIndex((node) => node.id === cursor) ?? 0
-      const nextIndex = direction === 'up' ? Math.max(currentIndex - 1, 0) : Math.min(currentIndex + 1, visibleNodes.length - 1)
-
-      if (outerRef?.current) {
-        const _itemHeight = itemHeight || 26
-        const containerHeight = outerRef.current.clientHeight
-        const nextItemTop = nextIndex * _itemHeight
-        const nextItemBottom = nextItemTop + _itemHeight
-        const scrollTop = outerRef.current.scrollTop
-
-        if (nextItemTop < scrollTop) {
-          outerRef.current.scrollTo({ top: nextItemTop })
-        } else if (nextItemBottom > scrollTop + containerHeight) {
-          outerRef.current.scrollTo({ top: nextItemBottom - containerHeight })
-        }
-      }
-
-      setCursor(visibleNodes[nextIndex].id)
-    },
-    [cursor, expanded, visibleNodes],
-  )
-
-  const expandCursor = useCallback(() => {
-    if (cursor && !expanded.includes(cursor)) {
-      setExpanded([...expanded, cursor])
-    }
-  }, [cursor, expanded])
-
-  const collapseCursor = useCallback(() => {
-    if (cursor && expanded.includes(cursor)) {
-      setExpanded(expanded.filter((nodeId) => nodeId !== cursor))
-    }
-  }, [cursor, expanded])
-
-  const clickOrExpandCursor = useCallback(() => {
-    if (cursor) {
-      const nodeId = model.getNodeId(cursor)
-      if (nodeId) {
-        const node = model.getNode(nodeId)
-        const selectable = isSelectable(node)
-
-        if (selectable) {
-          onClickHandler(nodeId)
-        } else {
-          expandCursor()
-        }
-      }
-    }
-  }, [cursor, expanded])
-
-  useEffect(() => {
-    if (useKeyboardNavigation) {
-      const handleKeydown = (e: KeyboardEvent) => {
-        e.stopPropagation()
-        e.preventDefault()
-
-        if (e.key === 'ArrowUp') {
-          moveCursor('up')
-        } else if (e.key === 'ArrowDown') {
-          moveCursor('down')
-        } else if (e.key === 'ArrowRight') {
-          expandCursor()
-        } else if (e.key === 'ArrowLeft') {
-          collapseCursor()
-        } else if (e.key === 'Enter') {
-          clickOrExpandCursor()
-        }
-      }
-
-      document.addEventListener('keydown', handleKeydown)
-      return () => {
-        document.removeEventListener('keydown', handleKeydown)
-      }
-    }
-  }, [moveCursor, expandCursor, collapseCursor])
-
-  const renderTreeNodes = (nodes: TNode[], parent = {} as { id: number }) => {
-    const treeNodes = nodes.map((node) => {
-      const nodeId = `${node.id}_${parent?.id ?? ''}`
-      const key = nodeId
-      const flatNode = model.getNode(nodeId)
-      const children = flatNode.isParent ? renderTreeNodes(node.children!, node) : null
-
-      flatNode.checkState = determineShallowCheckState(node, nodeId)
-
-      let showCheckbox = flatNode.showCheckbox
-
-      if (noCheckboxes) {
-        showCheckbox = false
-      } else if (hideCheckboxEmptyNode) {
-        showCheckbox = flatNode.treeDepth === 1 ? flatNode.children.length > 0 : flatNode.showCheckbox
-      } else if (onlyLeafCheckboxes) {
-        showCheckbox = flatNode.isLeaf
-      }
-
-      const parentExpanded = parent.id ? expanded.includes(parent.id) : true
-
-      const isBoldLabel =
-        typeof boldLabelModel === 'number'
-          ? flatNode.treeDepth <= boldLabelModel
-          : typeof boldLabelModel === 'function'
-            ? boldLabelModel(flatNode)
-            : boldLabelModel === 'parent'
-              ? flatNode.isParent
-              : true
-
-      const isExpanded = expanded.includes(node.id)
-
-      const isEmptyRootNode = flatNode.treeDepth === 1 && flatNode.children && flatNode.children.length > 0
-
-      if (!parentExpanded) {
-        return null
-      }
-
-      if (isEmptyRootNode && hideEmptyRootNode) {
-        return null
-      }
-
-      return (
-        <TreeNode
-          key={key}
-          checked={flatNode.checkState}
-          expandOnClick={expandOnClick}
-          checkOnClick={checkOnClick}
-          isExpanded={isExpanded}
-          isLeaf={flatNode.isLeaf || flatNode?.children.length === 0}
-          isParent={flatNode.isParent}
-          label={node.label}
-          showCheckbox={showCheckbox}
-          nodeId={nodeId}
-          onCheck={onCheckHandler}
-          onClick={onClickHandler}
-          onExpand={onExpandHandler}
-          expandIcon={defaultExpandIcon}
-          collapseIcon={defaultCollapseIcon}
-          noHoverStyle={noHoverStyle}
-          depth={flatNode.treeDepth}
-          selected={selectedNodeId === nodeId || initialSelected === node.id}
-          isBoldLabel={isBoldLabel}
-          selectable={isSelectable(flatNode)}
-          customSelectStyle={customSelectStyle}
-          showChildrenCount={showChildrenCount}
-          getChildrenCount={getChildrenCount}
-          itemHeight={itemHeight}
-          isCurrentCursor={cursor === node.id}
-          disableCheckboxesOfNoLeaf={disableCheckboxesOfNoLeaf && !node.hasChildType}
-        >
-          {children}
-        </TreeNode>
-      )
-    })
-
-    return (
-      <ul ref={ref} className={className} style={{ minWidth: '100%', width: 'max-content' }}>
-        {treeNodes}
-      </ul>
-    )
+    return basePadding + 24 * (node.treeDepth - 1) + indent
   }
 
-  return <>{renderTreeNodes(nodes)}</>
+  const getStyles = (node: FlatNode) => {
+    const selectable = isSelectable(node)
+    const nodeId = `${node.id}_${node.parent?.id || ''}`
+    const ariaSelected = (selectable && selectedNodeId === nodeId) || initialSelected === node.id ? 'true' : undefined
+
+    return {
+      ...(ariaSelected === 'true' ? customSelectStyle : {}),
+      ...(itemHeight ? { height: itemHeight } : {}),
+      paddingLeft: calculatePaddingLeft(node),
+    }
+  }
+
+  const treeNodes = nodes.map((node) => {
+    return <TreeNode key={node.id} model={model} node={node} parentId={null} flatNodes={flatNodes} getStyles={getStyles} />
+  })
+  //
+  // const renderTreeNodes = (nodes: TNode[], parent = {} as { id: number }) => {
+  //   const treeNodes = nodes.map((node) => {
+  //     const nodeId = `${node.id}_${parent?.id ?? ''}`
+  //     const key = nodeId
+  //     const flatNode = model.getNode(nodeId)
+  //     const children = flatNode.isParent ? renderTreeNodes(node.children!, node) : null
+  //
+  //     flatNode.checkState = determineShallowCheckState(node, nodeId)
+  //
+  //     let showCheckbox = flatNode.showCheckbox
+  //
+  //     if (noCheckboxes) {
+  //       showCheckbox = false
+  //     } else if (hideCheckboxEmptyNode) {
+  //       showCheckbox = flatNode.treeDepth === 1 ? flatNode.children.length > 0 : flatNode.showCheckbox
+  //     } else if (onlyLeafCheckboxes) {
+  //       showCheckbox = flatNode.isLeaf
+  //     }
+  //
+  //     const parentExpanded = parent.id ? expanded.includes(parent.id) : true
+  //
+  //     const isBoldLabel =
+  //       typeof boldLabelModel === 'number'
+  //         ? flatNode.treeDepth <= boldLabelModel
+  //         : typeof boldLabelModel === 'function'
+  //           ? boldLabelModel(flatNode)
+  //           : boldLabelModel === 'parent'
+  //             ? flatNode.isParent
+  //             : true
+  //
+  //     const isExpanded = expanded.includes(node.id)
+  //
+  //     const isEmptyRootNode = flatNode.treeDepth === 1 && flatNode.children && flatNode.children.length > 0
+  //
+  //     if (!parentExpanded) {
+  //       return null
+  //     }
+  //
+  //     if (isEmptyRootNode && hideEmptyRootNode) {
+  //       return null
+  //     }
+  //
+  //     return (
+  //       <TreeNode
+  //         key={key}
+  //         checked={flatNode.checkState}
+  //         expandOnClick={expandOnClick}
+  //         checkOnClick={checkOnClick}
+  //         isExpanded={isExpanded}
+  //         isLeaf={flatNode.isLeaf || flatNode?.children.length === 0}
+  //         isParent={flatNode.isParent}
+  //         label={node.label}
+  //         showCheckbox={showCheckbox}
+  //         nodeId={nodeId}
+  //         onCheck={onCheckHandler}
+  //         onClick={onClickHandler}
+  //         onExpand={onExpandHandler}
+  //         expandIcon={defaultExpandIcon}
+  //         collapseIcon={defaultCollapseIcon}
+  //         noHoverStyle={noHoverStyle}
+  //         depth={flatNode.treeDepth}
+  //         selected={selectedNodeId === nodeId || initialSelected === node.id}
+  //         isBoldLabel={isBoldLabel}
+  //         selectable={isSelectable(flatNode)}
+  //         customSelectStyle={customSelectStyle}
+  //         showChildrenCount={showChildrenCount}
+  //         getChildrenCount={getChildrenCount}
+  //         itemHeight={itemHeight}
+  //         isCurrentCursor={cursor === node.id}
+  //         disableCheckboxesOfNoLeaf={disableCheckboxesOfNoLeaf && !node.hasChildType}
+  //       >
+  //         {children}
+  //       </TreeNode>
+  //     )
+  //   })
+  //
+  //   return (
+  //   )
+  // }
+
+  return (
+    <ul ref={ref} className={className} style={{ minWidth: '100%', width: 'max-content' }}>
+      {treeNodes}
+    </ul>
+  )
 })
 
 Tree.displayName = 'Tree'

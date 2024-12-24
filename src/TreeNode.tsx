@@ -1,39 +1,60 @@
-import React from 'react'
-import { TreeNodeProps } from './types.ts'
+import React, { CSSProperties } from 'react'
+import { TNode, TreeNodeProps } from './types.ts'
 
 const TreeNode = (props: TreeNodeProps) => {
   const {
     checked,
-    isExpanded,
+    model,
+    node,
+    flatNodes,
+    getStyles,
+    parentId,
+    // isExpanded,
     expandOnClick,
     checkOnClick,
-    isLeaf,
-    isParent,
-    label,
-    nodeId,
-    onCheck,
-    onExpand,
-    onClick,
-    children,
-    showCheckbox = true,
+    // isLeaf,
+    // isParent,
+    // label,
+    // nodeId,
+    // onCheck,
+    // onExpand,
+    // onClick,
+    // children,
+    // showCheckbox = true,
     expandIcon,
     collapseIcon,
     // noHoverStyle,
     depth = 1,
-    selected,
+    // selected,
     // isBoldLabel,
     selectable,
-    customSelectStyle,
+    // customSelectStyle,
     showChildrenCount,
-    getChildrenCount,
-    itemHeight,
-    isCurrentCursor,
+    // getChildrenCount,
+    // itemHeight,
+    // isCurrentCursor,
     disableCheckboxesOfNoLeaf,
+    ...rest
   } = props
 
+  const children = (node.children || []).map((child) => {
+    return <TreeNode key={child.id} model={model} node={child} parentId={node.id} flatNodes={flatNodes} getStyles={getStyles} />
+  })
+
+  const nodeId = `${node.id}_${parentId || ''}`
+  const flatNode = flatNodes[nodeId]
+
+  const showCheckbox = flatNode.showCheckbox
+
+  // if (noCheckboxes) {
+  //   showCheckbox = false
+  // } else if (hideCheckboxEmptyNode) {
+  //   showCheckbox = flatNode.treeDepth === 1 ? flatNode.children.length > 0 : flatNode.showCheckbox
+  // } else if (onlyLeafCheckboxes) {
+  //   showCheckbox = flatNode.isLeaf
+  // }
   const isNodeChecked = typeof checked === 'number' && checked > 0
   const ariaSelected = selectable && selected ? 'true' : undefined
-  const ariaCurrentCursor = isCurrentCursor ? 'true' : undefined
 
   const handleCheck = () => {
     onCheck?.({ id: nodeId, checked: !isNodeChecked })
@@ -114,23 +135,8 @@ const TreeNode = (props: TreeNodeProps) => {
     }
     return children
   }
+  const style = getStyles(node)
 
-  const calculatePaddingLeft = () => {
-    const basePadding = 12
-    let indent = 0
-
-    if (!isParent) {
-      indent += 20
-    }
-
-    return basePadding + 24 * (depth - 1) + indent
-  }
-
-  const style = {
-    ...(ariaSelected === 'true' ? customSelectStyle : {}),
-    ...(itemHeight ? { height: itemHeight } : {}),
-    paddingLeft: calculatePaddingLeft(),
-  }
   return (
     <li>
       <span aria-selected={ariaSelected} aria-current={ariaCurrentCursor} onClick={expandOnClick ? handleExpand : undefined} style={style}>

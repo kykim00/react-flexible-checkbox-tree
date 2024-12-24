@@ -1,4 +1,5 @@
 import { FlatNode, TNode, NodeInfo, TreeProps } from './types'
+import { memoizedFlattenNodes } from './flattenNodes.ts'
 
 class NodeModel<T extends number> {
   private checkModel: string
@@ -79,36 +80,8 @@ class NodeModel<T extends number> {
   }
 
   flattenNodes(nodes: TNode[], parent = {} as FlatNode, depth = 1): void {
-    if (!Array.isArray(nodes) || nodes.length === 0) {
-      return
-    }
-
-    nodes.forEach((node, index) => {
-      const isParent = this.nodeHasChildren(node)
-
-      const nodeId = `${node.id}_${parent?.id ?? ''}`
-
-      if (this.flatNodes[nodeId] !== undefined) {
-        throw new Error(`parent ${parent?.id} 에 node.id ${node.id}가 중복되었습니다.`)
-      }
-
-      Object.assign(this.flatNodes, {
-        [nodeId]: {
-          ...node,
-          parent,
-          isChild: parent && 'id' in parent && parent.id !== undefined,
-          isParent,
-          isLeaf: !isParent,
-          showCheckbox: node.showCheckbox !== undefined ? node.showCheckbox : true,
-          treeDepth: depth,
-          index,
-        },
-      })
-
-      if (node.children) {
-        this.flattenNodes(node.children, this.flatNodes[nodeId], depth + 1)
-      }
-    })
+    const flatNodes = memoizedFlattenNodes(nodes, parent, depth)
+    Object.assign(this.flatNodes, flatNodes)
   }
 
   nodeHasChildren(node: TNode): boolean {

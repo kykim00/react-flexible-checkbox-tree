@@ -1,4 +1,5 @@
 import { CSSProperties, ReactNode, RefObject } from 'react'
+import NodeModel from './NodeModel.ts'
 
 export type CheckModel = 'leaf' | 'all'
 
@@ -60,6 +61,11 @@ export type TreeProps<T extends number> = {
 } & { className?: string }
 
 export type TreeNodeProps = {
+  model: NodeModel<number>
+  node: TNode
+  flatNodes: { [key: string]: FlatNode }
+  getStyles: (node: FlatNode) => CSSProperties
+  parentId: number | null
   nodeId: string
   label: ReactNode
   checked?: number

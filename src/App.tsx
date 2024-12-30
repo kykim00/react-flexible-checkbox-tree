@@ -3,7 +3,7 @@ import { Tree } from './Tree.tsx'
 import { createNodes } from './createNodes.ts'
 import { Tree2 } from './Tree2.tsx'
 
-const data = generateRandomData(100)
+const data = generateRandomData(10000)
 
 const nodes = createNodes({
   parents: data,

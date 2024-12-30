@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react'
-import { CheckedNodeStatus, getAllCheckedNodes, isNodeChecked, isNodeIndeterminate } from './utils/checkHandler.ts'
+import { useCallback, useMemo, useState } from 'react'
+import { CheckedNodeStatus, getAllCheckedNodes } from './utils/checkHandler.ts'
 import type { TreeNodeData } from './types'
 import { getChildrenNodesValues, getAllChildrenNodes, getAllLeafNodes } from './utils/getChildrenValues.ts'
 
@@ -86,8 +86,8 @@ export interface UseTreeReturnType {
   /** 체크된 노드 상태 설정 */
   setCheckedState: React.Dispatch<React.SetStateAction<string[]>>
 
-  /** 체크된 노드 정보 가져오기 */
-  getCheckedNodes: () => CheckedNodeStatus[]
+  /** 체크된 노드 정보 */
+  checkedNodeStatus: CheckedNodeStatus[]
   /** 노드 체크 여부 확인 */
   isNodeChecked: (value: string) => boolean
   /** 노드 부분 체크 여부 확인 */
@@ -213,11 +213,17 @@ export function useTree({
     setCheckedState([])
   }, [])
 
-  const getCheckedNodes = useCallback(() => getAllCheckedNodes(data, checkedState).result, [data, checkedState])
+  const checkedNodeStatus = useMemo(() => getAllCheckedNodes(data, checkedState).result, [data, checkedState])
 
-  const _isNodeChecked = useCallback((value: string) => isNodeChecked(value, data, checkedState), [data, checkedState])
+  const _isNodeChecked = useCallback(
+    (value: string) => checkedNodeStatus.find((checkedNode) => checkedNode.value === value)?.checked || false,
+    [data, checkedState],
+  )
 
-  const _isNodeIndeterminate = useCallback((value: string) => isNodeIndeterminate(value, data, checkedState), [data, checkedState])
+  const _isNodeIndeterminate = useCallback(
+    (value: string) => checkedNodeStatus.find((checkedNode) => checkedNode.value === value)?.indeterminate || false,
+    [data, checkedState],
+  )
 
   return {
     expandedState,
@@ -242,7 +248,7 @@ export function useTree({
     uncheckAllNodes,
     setCheckedState,
 
-    getCheckedNodes,
+    checkedNodeStatus,
     isNodeChecked: _isNodeChecked,
     isNodeIndeterminate: _isNodeIndeterminate,
   }

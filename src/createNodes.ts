@@ -1,6 +1,8 @@
 import { TNode } from './types.ts'
 
-interface CreateNodesParams<T extends TNode, U extends TNode> {
+type CreateNodesInputNode = Exclude<TNode, 'value'>
+
+interface CreateNodesParams<T extends CreateNodesInputNode, U extends CreateNodesInputNode> {
   /** 부모 노드가 될 데이터 배열 (ex. 조직) */
   parents: T[]
   /** 자식 노드가 될 데이터 배열 (ex. 직원) */
@@ -13,22 +15,30 @@ interface CreateNodesParams<T extends TNode, U extends TNode> {
   parentToChildKey?: keyof U
   /** 출력 순서 */
   printChildFirst?: boolean
+  /** 노드의 id 와 부모 노드 id 를 조합하여 unique 한 id 를 자동 생성. 기본값 true. */
+  enableUniqueId?: boolean
 }
 
-export const createNodes = <T extends TNode, U extends TNode>({
+function parseValue<T extends CreateNodesInputNode>(node: T, parentKey: keyof T, enableUniqueId = true) {
+  return enableUniqueId ? `${node.id}_${node[parentKey] ?? ''}` : String(node.id)
+}
+
+export const createNodes = <T extends CreateNodesInputNode, U extends CreateNodesInputNode>({
   parents,
   children,
   parentKey,
   childKey,
   parentToChildKey,
   printChildFirst = false,
+  enableUniqueId = true,
 }: CreateNodesParams<T, U>): TNode[] => {
-  const tree: { [key: number]: TNode } = {}
+  const tree: { [key: string]: TNode } = {}
   const rootNodes: TNode[] = []
 
   for (const parent of parents) {
     const node: TNode = {
       ...parent,
+      value: parseValue(parent, parentKey, enableUniqueId),
       children: [],
     }
 
@@ -39,6 +49,7 @@ export const createNodes = <T extends TNode, U extends TNode>({
       if (!(parentGroupId in tree)) {
         tree[parentGroupId] = {
           ...parent,
+          value: parseValue(parent, parentGroupId, enableUniqueId),
           children: [],
         }
       }
@@ -49,10 +60,10 @@ export const createNodes = <T extends TNode, U extends TNode>({
   }
 
   if (children) {
-    const childrenTree: { [key: number]: TNode } = {}
+    const childrenTree: { [key: string]: TNode } = {}
 
     for (const child of children) {
-      childrenTree[child.id] = { ...child, children: [] }
+      childrenTree[child.id] = { ...child, children: [], value: parseValue(child, parentToChildKey || 'no-item', enableUniqueId) }
 
       if (parentToChildKey && child[parentToChildKey] in tree) {
         const parentTypeFirstIndex =
@@ -72,6 +83,7 @@ export const createNodes = <T extends TNode, U extends TNode>({
         if (!(parentIdOfChild in childrenTree)) {
           childrenTree[parentIdOfChild] = {
             ...child,
+            value: parseValue(child, parentIdOfChild, enableUniqueId),
             children: [],
           }
         }

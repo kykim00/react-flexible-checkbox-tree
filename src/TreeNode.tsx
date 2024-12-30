@@ -1,6 +1,17 @@
 import React, { CSSProperties } from 'react'
 import { TNode, TreeNodeProps } from './types.ts'
 
+const renderNode = ({ node, expanded, hasChildren, onExpand, model }: any) => {
+  // const checked = model.
+  return (
+    <li>
+      {hasChildren && <span onClick={onExpand}>{expanded ? '-' : '+'}</span>}
+
+      {node.label}
+    </li>
+  )
+}
+
 const TreeNode = (props: TreeNodeProps) => {
   const {
     checked,
@@ -17,7 +28,8 @@ const TreeNode = (props: TreeNodeProps) => {
     // label,
     // nodeId,
     // onCheck,
-    // onExpand,
+    onExpand,
+    expanded,
     // onClick,
     // children,
     // showCheckbox = true,
@@ -38,14 +50,24 @@ const TreeNode = (props: TreeNodeProps) => {
   } = props
 
   const children = (node.children || []).map((child) => {
-    return <TreeNode key={child.id} model={model} node={child} parentId={node.id} flatNodes={flatNodes} getStyles={getStyles} />
+    return (
+      <TreeNode
+        key={child.id}
+        model={model}
+        node={child}
+        parentId={node.id}
+        flatNodes={flatNodes}
+        getStyles={getStyles}
+        onExpand={onExpand}
+        expanded={expanded}
+      />
+    )
   })
 
   const nodeId = `${node.id}_${parentId || ''}`
   const flatNode = flatNodes[nodeId]
 
   const showCheckbox = flatNode.showCheckbox
-
   // if (noCheckboxes) {
   //   showCheckbox = false
   // } else if (hideCheckboxEmptyNode) {
@@ -53,8 +75,10 @@ const TreeNode = (props: TreeNodeProps) => {
   // } else if (onlyLeafCheckboxes) {
   //   showCheckbox = flatNode.isLeaf
   // }
+  // model.
   const isNodeChecked = typeof checked === 'number' && checked > 0
-  const ariaSelected = selectable && selected ? 'true' : undefined
+  // const ariaSelected = selectable && selected ? 'true' : undefined
+  const isExpanded = expanded.includes(node.id)
 
   const handleCheck = () => {
     onCheck?.({ id: nodeId, checked: !isNodeChecked })
@@ -77,13 +101,13 @@ const TreeNode = (props: TreeNodeProps) => {
     onExpand?.(nodeId)
   }
 
-  const renderChildrenCountLabel = () => {
-    if (isLeaf || !showChildrenCount || !getChildrenCount) {
-      return null
-    }
-
-    return <span>({getChildrenCount(nodeId)})</span>
-  }
+  // const renderChildrenCountLabel = () => {
+  //   if (isLeaf || !showChildrenCount || !getChildrenCount) {
+  //     return null
+  //   }
+  //
+  //   return <span>({getChildrenCount(nodeId)})</span>
+  // }
 
   const renderCollapseButton = () => {
     if (isLeaf) {
@@ -104,29 +128,25 @@ const TreeNode = (props: TreeNodeProps) => {
   }
 
   const renderBareLabel = (children: React.ReactNode) => {
-    return (
-      <span onClick={handleClick}>
-        {children} {renderChildrenCountLabel()}
-      </span>
-    )
+    return <span onClick={handleClick}>{children}</span>
   }
 
-  const renderCheckboxLabel = (children: React.ReactNode) => {
-    return (
-      <>
-        <input type="checkbox" disabled={disableCheckboxesOfNoLeaf} checked={isNodeChecked} onChange={handleCheck} />
-        <span onClick={handleClick}>{children}</span>
-        {renderChildrenCountLabel()}
-      </>
-    )
-  }
+  // const renderCheckboxLabel = (children: React.ReactNode) => {
+  //   return (
+  //     <>
+  //       <input type="checkbox" disabled={disableCheckboxesOfNoLeaf} checked={isNodeChecked} onChange={handleCheck} />
+  //       <span onClick={handleClick}>{children}</span>
+  //       {renderChildrenCountLabel()}
+  //     </>
+  //   )
+  // }
 
   const renderLabel = () => {
-    if (!showCheckbox) {
-      return renderBareLabel(label)
-    }
+    // if (!showCheckbox) {
+    return renderBareLabel(node.label)
+    // }
 
-    return renderCheckboxLabel(label)
+    // return renderCheckboxLabel(node.label)
   }
 
   const renderChildren = () => {

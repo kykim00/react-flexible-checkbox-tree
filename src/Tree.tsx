@@ -4,7 +4,7 @@ import { FlatNode, TNode, TreeProps } from './types'
 import TreeNode from './TreeNode'
 import NodeModel from './NodeModel'
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
-import { memoizedFlattenNodes } from './flattenNodes.ts'
+import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
 
 /**
  *
@@ -225,7 +225,18 @@ export const Tree = forwardRef<HTMLUListElement, TreeProps<number>>((props, ref)
   }
 
   const treeNodes = nodes.map((node) => {
-    return <TreeNode key={node.id} model={model} node={node} parentId={null} flatNodes={flatNodes} getStyles={getStyles} />
+    return (
+      <TreeNode
+        key={node.id}
+        model={model}
+        node={node}
+        parentId={null}
+        flatNodes={flatNodes}
+        getStyles={getStyles}
+        onExpand={onExpandHandler}
+        expanded={expanded}
+      />
+    )
   })
   //
   // const renderTreeNodes = (nodes: TNode[], parent = {} as { id: number }) => {

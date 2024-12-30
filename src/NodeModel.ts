@@ -1,5 +1,5 @@
 import { FlatNode, TNode, NodeInfo, TreeProps } from './types'
-import { memoizedFlattenNodes } from './flattenNodes.ts'
+import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
 
 class NodeModel<T extends number> {
   private checkModel: string

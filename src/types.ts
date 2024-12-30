@@ -4,13 +4,16 @@ import NodeModel from './NodeModel.ts'
 export type CheckModel = 'leaf' | 'all'
 
 export type TNode = {
-  id: number
+  id: number | string
   label: string
   type?: string
+  value: string
   children?: Array<TNode>
   showCheckbox?: boolean
   [key: string]: any
 }
+
+export type TreeNodeData = TNode
 
 export type FlatNode = {
   parent: FlatNode

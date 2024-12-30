@@ -1,5 +1,5 @@
-import { FlatNode, TNode } from './types.ts'
-import { memoize } from './utils/memoize.ts'
+import { FlatNode, TNode } from '../types.ts'
+import { memoize } from './memoize.ts'
 
 type FlatNodes = { [key: string]: FlatNode }
 

@@ -1,9 +1,7 @@
 import { useCallback, useState } from 'react'
-import { CheckedNodeStatus, getAllCheckedNodes } from './utils/getAllCheckedNodes'
-import { getAllChildrenNodes, getAllLeafNodes, getChildrenNodesValues } from './utils/getChildrenNodesValues'
-import { memoizedIsNodeChecked } from './utils/isNodeChecked'
-import { memoizedIsNodeIndeterminate } from './utils/isNodeIndeterminate'
+import { CheckedNodeStatus, getAllCheckedNodes, isNodeChecked, isNodeIndeterminate } from './utils/checkHandler.ts'
 import type { TreeNodeData } from './types'
+import { getChildrenNodesValues, getAllChildrenNodes, getAllLeafNodes } from './utils/getChildrenValues.ts'
 
 export type TreeExpandedState = Record<string, boolean>
 
@@ -217,9 +215,9 @@ export function useTree({
 
   const getCheckedNodes = useCallback(() => getAllCheckedNodes(data, checkedState).result, [data, checkedState])
 
-  const isNodeChecked = useCallback((value: string) => memoizedIsNodeChecked(value, data, checkedState), [data, checkedState])
+  const _isNodeChecked = useCallback((value: string) => isNodeChecked(value, data, checkedState), [data, checkedState])
 
-  const isNodeIndeterminate = useCallback((value: string) => memoizedIsNodeIndeterminate(value, data, checkedState), [data, checkedState])
+  const _isNodeIndeterminate = useCallback((value: string) => isNodeIndeterminate(value, data, checkedState), [data, checkedState])
 
   return {
     expandedState,
@@ -245,7 +243,9 @@ export function useTree({
     setCheckedState,
 
     getCheckedNodes,
-    isNodeChecked,
-    isNodeIndeterminate,
+    isNodeChecked: _isNodeChecked,
+    isNodeIndeterminate: _isNodeIndeterminate,
   }
 }
+
+export type TreeController = ReturnType<typeof useTree>

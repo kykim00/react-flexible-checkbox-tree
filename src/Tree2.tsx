@@ -18,7 +18,7 @@ export const Tree2 = ({
   boldLabelModel = 2,
   className,
   onlyLeafCheckboxes = false,
-  forceExpand = false,
+  // forceExpand = false,
   onExpand,
   initialExpanded = [],
   hideEmptyRootNode = false,
@@ -28,15 +28,16 @@ export const Tree2 = ({
   // useKeyboardNavigation,
   // outerRef,
   disableCheckboxesOfNoLeaf = false,
+  forceExpand = 1,
   tree,
   ref,
 }: any) => {
   const defaultController = useTree()
-  const controller = tree || defaultController
+  const controller = defaultController
 
   useEffect(() => {
-    controller.initialize(nodes)
-  }, [nodes])
+    controller.initialize(nodes, forceExpand)
+  }, [nodes, forceExpand])
 
   const treeNodes = nodes.map((node) => (
     <TreeNode

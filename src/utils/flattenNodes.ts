@@ -2,7 +2,6 @@ import { FlatNode, TNode } from '../types.ts'
 import { memoize } from './memoize.ts'
 
 type FlatNodes = { [key: string]: FlatNode }
-
 function flattenNodes(nodes: TNode[], parent = {} as FlatNode, depth = 1): FlatNodes {
   const flatNodes: FlatNodes = {}
 
@@ -12,17 +11,13 @@ function flattenNodes(nodes: TNode[], parent = {} as FlatNode, depth = 1): FlatN
 
   nodes.forEach((node, index) => {
     const isParent = Array.isArray(node.children) && node.children.length > 0
-
-    const nodeId = `${node.id}_${parent?.id ?? ''}`
-
-    if (flatNodes[nodeId] !== undefined) {
-      throw new Error(`parent ${parent?.id} 에 node.id ${node.id}가 중복되었습니다.`)
-    }
+    const nodeId = node.value || `${node.id}_${parent?.id ?? ''}`
 
     Object.assign(flatNodes, {
       [nodeId]: {
         ...node,
         parent,
+        value: nodeId,
         isChild: parent && 'id' in parent && parent.id !== undefined,
         isParent,
         isLeaf: !isParent,
@@ -33,7 +28,8 @@ function flattenNodes(nodes: TNode[], parent = {} as FlatNode, depth = 1): FlatN
     })
 
     if (node.children) {
-      flattenNodes(node.children, flatNodes[nodeId], depth + 1)
+      const childNodes = flattenNodes(node.children, parent, depth + 1)
+      Object.assign(flatNodes, childNodes)
     }
   })
 

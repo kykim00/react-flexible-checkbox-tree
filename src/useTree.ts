@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { CheckedNodeStatus, getAllCheckedNodes } from './utils/checkHandler.ts'
 import type { TreeNodeData } from './types'
 import { getChildrenNodesValues, getAllChildrenNodes, getAllLeafNodes } from './utils/getChildrenValues.ts'
+import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
 
 export type TreeExpandedState = Record<string, boolean>
 
@@ -61,6 +62,8 @@ export interface UseTreeReturnType {
   collapse: (value: string) => void
   /** 노드 확장 */
   expand: (value: string) => void
+  /** 노드 일부 확장 */
+  expandToLevel: (level: number | boolean) => void
   /** 모든 노드 확장 */
   expandAllNodes: () => void
   /** 모든 노드 축소 */
@@ -108,10 +111,12 @@ export function useTree({
   const [checkedState, setCheckedState] = useState<string[]>(initialCheckedState)
 
   const initialize = useCallback(
-    (_data: TreeNodeData[]) => {
-      setExpandedState((current) => getInitialTreeExpandedState(current, _data, selectedState))
+    (_data: TreeNodeData[], forceExpand: number | boolean) => {
       setCheckedState((current) => getInitialCheckedState(current, _data))
       setData(_data)
+      const initialTreeExpandedState = getInitialTreeExpandedState(initialExpandedState, _data, selectedState)
+
+      forceExpand ? expandToLevel(forceExpand, _data, initialTreeExpandedState) : setExpandedState(initialTreeExpandedState)
     },
     [selectedState],
   )
@@ -150,6 +155,28 @@ export function useTree({
     },
     [onNodeExpand],
   )
+
+  const expandToLevel = useCallback((level: number | boolean, _data = data, _expandedState = expandedState) => {
+    if (level === true) {
+      expandAllNodes()
+      return
+    }
+
+    if (!level) {
+      collapseAllNodes()
+      return
+    }
+
+    const flatNodes = memoizedFlattenNodes(_data)
+    const targetNodes = Object.values(flatNodes).filter((node) => node.treeDepth <= level)
+
+    const next = { ..._expandedState }
+    Object.keys(next).forEach((key) => {
+      next[key] = targetNodes.some((node) => node.value === key)
+    })
+
+    setExpandedState(next)
+  }, [])
 
   const expandAllNodes = useCallback(() => {
     setExpandedState((current) => {
@@ -234,6 +261,7 @@ export function useTree({
     toggleExpanded,
     collapse,
     expand,
+    expandToLevel,
     expandAllNodes,
     collapseAllNodes,
     setExpandedState,

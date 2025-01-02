@@ -1,10 +1,10 @@
 'use client'
 
-import { FlatNode, TNode, TreeProps } from './types'
+import { FlatNode, NodeId, TreeProps } from './types'
 import TreeNode from './TreeNode'
-import NodeModel from './NodeModel'
-import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
-import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
+import { forwardRef, useEffect, useMemo } from 'react'
+import { useTree } from './useTree'
+import { memoizedFlattenNodes } from './flattenNodes'
 
 /**
  *
@@ -13,7 +13,6 @@ import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
  * @param nodes 트리를 구성하는 노드 객체 배열. 필수값
  * @param checked 체크된 노드의 id 배열. 기본값은 []
  * @param checkModel checked 에 포함될 수 있는 노드를 지정하는 값. 'leaf', 'all' 이 올 수 있다. 기본값은 'leaf'
- * @param customCheckModel checked 에 포함될 수 있는 노드를 지정하는 값. checkModel 의 설정을 무시한다. customCheckModel 과 node.type 이 걑은 노드만 checked 에 포함될 수 있다.
  * @param onlyLeafCheckboxes leaf 노드만 체크박스를 표시할지 여부. 기본값은 false
  * @param initialExpanded 초기에 확장될 노드의 id 배열. 기본값은 []
  * @param forceExpanded 노드를 강제로 확장시키기 위한 값. boolean 또는 양의 정수가 올 수 있다. true 인 경우 모든 노드 확장. 숫자인 경우 depth 가 해당 숫자 이하인 노드 확장. 기본값은 false
@@ -25,7 +24,6 @@ import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
  * @param defaultCollapseIcon 노드 접기 아이콘.
  * @param defaultExpandIcon 노드 확장 아이콘.
  * @param noCheckboxes 체크박스를 전혀 표시하지 않을지 여부. 기본값은 false
- * @param noHoverStyle 호버 스타일을 제거할지 여부. 기본값은 false
  * @param selctable 선택이 가능한 노드인지 여부. boolean 또는 (node) => boolean 함수.  기본값은 true
  * @param customSelectStyle 선택 노드에 적용할 스타일.
  * @param boldLabelModel bold label 스타일을 지정할 노드를 선택하는 값. 'parent', 'all', 양의 정수가 올 수 있다. parent 인 경우 leaf 노드를 제외한 노드에 적용된다. 숫자인 경우 depth 가 해당 숫자 이하인 노드에 적용된다. 기본값은 2
@@ -33,45 +31,23 @@ import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
  * @param hideEmptyRootNode 루트 노드의 children 이 없을 경우 해당 루트 노드를 표시 할지 여부. 기본값은 false
  * @param hideCheckboxEmptyNode 노드의 children 이 없을 경우 해당 노드에 체크박스를 표시할지 여부. 기본값은 false
  * @param useKeyboardNavigation 키보드 방향키 입력으로 트리 확장, 축소, 선택 동작할 지 여부. 기본값은 false
- * @param outerRef 트리를 감싸는 container ref
  * @param itemHeight 노드의 높이. 기본값은 26
  * @param disableCheckboxesOfNoLeaf createNodes로 tree를 생성한 경우, children이 하나도 없는 트리의 체크 박스 활성화 여부, 기본값은 false
  * @returns 트리 컴포넌트
  */
 
 export const Tree = forwardRef<HTMLUListElement, TreeProps<number>>((props, ref) => {
-  const [prevNodes, setPrevNodes] = useState<TNode[] | null>(null)
-  const nodes = prevNodes ?? props.nodes
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error
-  const flatNodes = useMemo(() => memoizedFlattenNodes(nodes, {}, 1), [nodes])
-
-  const [model, setModel] = useState(getNewModel())
-
-  function getNewModel() {
-    const newModel = new NodeModel(props)
-    newModel.flattenNodes(props.nodes)
-    newModel.setCheckedNodes(props.checked ?? [])
-    return newModel
-  }
-
-  if (JSON.stringify(prevNodes) !== JSON.stringify(props.nodes)) {
-    setModel(getNewModel())
-    setPrevNodes(props.nodes)
-  }
-
   const {
     onCheck,
-    onClick,
+    onSelect,
     expandOnClick = false,
     checkOnClick = false,
     showChildrenCount = false,
     defaultCollapseIcon = '+',
     defaultExpandIcon = '-',
     noCheckboxes = false,
-    noHoverStyle = false,
     selectable = true,
+    checkModel = 'leaf',
     customSelectStyle,
     boldLabelModel = 2,
     className,
@@ -83,244 +59,116 @@ export const Tree = forwardRef<HTMLUListElement, TreeProps<number>>((props, ref)
     hideCheckboxEmptyNode = false,
     itemHeight,
     initialSelected = null,
-    useKeyboardNavigation,
-    outerRef,
+    // useKeyboardNavigation,
+    nodes,
+    checked,
     disableCheckboxesOfNoLeaf = false,
   } = props
 
-  const initialSelectedNodeId = initialSelected ? model.getNodeId(initialSelected) : null
+  const defaultController = useTree({
+    initialCheckedState: checked,
+    initialExpandedState: initialExpanded,
+    initialSelectedState: initialSelected,
+    checkModel,
+  })
 
-  const [cursor, setCursor] = useState<number | null>(null)
-  const [prevInitialExpanded, setPrevInitialExpanded] = useState(initialExpanded)
-  const [expanded, setExpanded] = useState(prevInitialExpanded)
-
-  // if (!isEqual(prevInitialExpanded, initialExpanded)) {
-  //   setPrevInitialExpanded(initialExpanded)
-  //   setExpanded(initialExpanded)
-  // }
-
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialSelectedNodeId)
+  const controller = defaultController
 
   useEffect(() => {
-    const newModel = model.clone()
-    newModel.setProps(props)
-    newModel.setCheckModel(props)
-    setModel(newModel)
-  }, [props.checkModel, props.customCheckModel])
+    controller.initialize(nodes, forceExpand)
+  }, [nodes, forceExpand])
 
-  const [internalChecked, setInternalChecked] = useState(props.checked ?? [])
+  const flatNodes = useMemo(() => memoizedFlattenNodes({ nodes }), [nodes])
 
-  useEffect(() => {
-    if (!props.checked) return
-
-    // if (!isEqual(props.checked, internalChecked)) {
-    const newModel = model.clone()
-    newModel.setCheckedNodes(props.checked)
-    setModel(newModel)
-    setInternalChecked(props.checked)
-    // }
-  }, [props.checked])
-
-  useEffect(() => {
-    if (forceExpand) {
-      const cpyModel = model.clone()
-      const nodes = cpyModel.getAllNodes()
-
-      if (typeof forceExpand === 'number') {
-        setExpanded(nodes.filter((node) => node.treeDepth <= forceExpand).map((node) => node.id))
-      } else {
-        setExpanded(nodes.map((node) => node.id))
-      }
-    } else {
-      setExpanded(initialExpanded)
+  const onClickHandler = (nodeId: NodeId) => {
+    expandOnClick && onExpandHandler(nodeId)
+    checkOnClick && onCheckHandler(nodeId)
+    if (isSelectable(flatNodes[nodeId])) {
+      isSelectable(flatNodes[nodeId]) && controller.select(nodeId)
+      onSelect?.(parseOriginalId(nodeId), flatNodes[nodeId])
     }
-  }, [forceExpand])
-
-  const onClickHandler = (nodeId: string) => {
-    setSelectedNodeId(nodeId)
-    onClick?.(model.parseId(nodeId), model.getNode(nodeId))
   }
 
-  const onCheckHandler = (nodeInfo: { id: string; checked: boolean }) => {
-    const newModel = model.clone()
-    newModel.toggleChecked(nodeInfo.id, nodeInfo.checked)
-    setModel(newModel)
-    const { ids, infos } = newModel.getCheckedNodeInfos()
-    onCheck?.(ids, infos)
-    setInternalChecked(ids)
+  const parseOriginalId = (value: NodeId) => {
+    return typeof value === 'number' ? value : Number(value.split('_')[0])
   }
 
-  const onExpandHandler = (nodeId: string) => {
-    const id = model.parseId(nodeId)
-    const nextExpanded = expanded.includes(id) ? expanded.filter((prev) => prev !== id) : [...expanded, id]
+  const onCheckHandler = (nodeId: NodeId) => {
+    const checked = controller.isNodeChecked(nodeId)
+    const checkedState = checked ? controller.uncheckNode(nodeId) : controller.checkNode(nodeId)
 
-    setExpanded(nextExpanded)
-    onExpand?.(id, nextExpanded)
+    const checkedNodeInfos = Object.values(flatNodes).filter((flatNode) => checkedState.includes(flatNode.value))
+    const checkedNodeIds = checkedNodeInfos.map((node) => node.id)
+
+    onCheck?.(checkedNodeIds, checkedNodeInfos)
   }
 
-  const determineShallowCheckState = (node: TNode, nodeId: string) => {
-    const flatNode = model.getNode(nodeId)
-
-    if (disableCheckboxesOfNoLeaf && !node.hasChildType) {
-      return 0
-    }
-    if (flatNode.isLeaf || (node.children && node.children.length === 0)) {
-      return flatNode.checked ? 1 : 0
-    }
-
-    if (isEveryChildChecked(node)) {
-      return 1
-    }
-
-    if (isSomeChildChecked(node)) {
-      return 2
-    }
-
-    return flatNode.checked ? 1 : 0
-  }
-
-  const isEveryChildChecked = (node: TNode) => {
-    return node.children?.every((child) => model.getNode(`${child.id}_${node.id}`).checkState === 1)
-  }
-
-  const isSomeChildChecked = (node: TNode) => {
-    return node.children?.some((child) => model.getNode(`${child.id}_${node.id}`).checkState > 0)
+  const onExpandHandler = (nodeId: NodeId) => {
+    controller.toggleExpanded(nodeId)
+    onExpand?.(
+      flatNodes[nodeId].id,
+      Object.entries(controller.expandedState)
+        .filter(([_, expanded]) => expanded)
+        .map(([id]) => id)
+        .map(parseOriginalId),
+    )
   }
 
   const isSelectable = (node: FlatNode) => {
     return typeof selectable === 'function' ? selectable(node) : selectable
   }
 
-  const getChildrenCount = (id: string) => {
-    if (props.customCheckModel) {
-      return model.getCustomCheckModelChildrenCount(id)
-    }
-    if (props.checkModel === 'leaf') {
-      return model.getLeafChildrenCount(id)
-    }
-    return model.getChildrenCount(id)
+  const isBoldLabel = (node: FlatNode) => {
+    if (!node) return false
+
+    if (typeof boldLabelModel === 'number') return node.treeDepth <= boldLabelModel
+
+    if (typeof boldLabelModel === 'function') return boldLabelModel(node)
+
+    if (boldLabelModel === 'parent') return node.isParent
+
+    return true
   }
 
-  const calculatePaddingLeft = (node: FlatNode) => {
-    const basePadding = 12
-    let indent = 0
+  const isShowCheckbox = (node: FlatNode) => {
+    if (noCheckboxes) return false
 
-    if (!node.isParent) {
-      indent += 20
-    }
+    if (onlyLeafCheckboxes && !node.isLeaf) return false
 
-    return basePadding + 24 * (node.treeDepth - 1) + indent
-  }
+    if (hideCheckboxEmptyNode && node.treeDepth === 1 && !node.children.length) return false
 
-  const getStyles = (node: FlatNode) => {
-    const selectable = isSelectable(node)
-    const nodeId = `${node.id}_${node.parent?.id || ''}`
-    const ariaSelected = (selectable && selectedNodeId === nodeId) || initialSelected === node.id ? 'true' : undefined
-
-    return {
-      ...(ariaSelected === 'true' ? customSelectStyle : {}),
-      ...(itemHeight ? { height: itemHeight } : {}),
-      paddingLeft: calculatePaddingLeft(node),
-    }
+    return true
   }
 
   const treeNodes = nodes.map((node) => {
+    if (hideEmptyRootNode && !node.children?.length) return null
+
     return (
       <TreeNode
         key={node.id}
-        model={model}
-        node={node}
-        parentId={null}
         flatNodes={flatNodes}
-        getStyles={getStyles}
+        nodeId={node.value || node.id}
+        controller={controller}
+        showChildrenCount={showChildrenCount}
+        expandOnClick={expandOnClick}
+        checkOnClick={checkOnClick}
+        customSelectStyle={customSelectStyle}
+        onCheck={onCheckHandler}
+        onClick={onClickHandler}
         onExpand={onExpandHandler}
-        expanded={expanded}
+        expandIcon={defaultExpandIcon}
+        collapseIcon={defaultCollapseIcon}
+        depth={1}
+        isBoldLabel={isBoldLabel}
+        isShowCheckbox={isShowCheckbox}
+        itemHeight={itemHeight}
+        disableCheckboxesOfNoLeaf={disableCheckboxesOfNoLeaf && !node.hasChildType}
+        // isCurrentCursor={cursor === node.id}
       />
     )
   })
-  //
-  // const renderTreeNodes = (nodes: TNode[], parent = {} as { id: number }) => {
-  //   const treeNodes = nodes.map((node) => {
-  //     const nodeId = `${node.id}_${parent?.id ?? ''}`
-  //     const key = nodeId
-  //     const flatNode = model.getNode(nodeId)
-  //     const children = flatNode.isParent ? renderTreeNodes(node.children!, node) : null
-  //
-  //     flatNode.checkState = determineShallowCheckState(node, nodeId)
-  //
-  //     let showCheckbox = flatNode.showCheckbox
-  //
-  //     if (noCheckboxes) {
-  //       showCheckbox = false
-  //     } else if (hideCheckboxEmptyNode) {
-  //       showCheckbox = flatNode.treeDepth === 1 ? flatNode.children.length > 0 : flatNode.showCheckbox
-  //     } else if (onlyLeafCheckboxes) {
-  //       showCheckbox = flatNode.isLeaf
-  //     }
-  //
-  //     const parentExpanded = parent.id ? expanded.includes(parent.id) : true
-  //
-  //     const isBoldLabel =
-  //       typeof boldLabelModel === 'number'
-  //         ? flatNode.treeDepth <= boldLabelModel
-  //         : typeof boldLabelModel === 'function'
-  //           ? boldLabelModel(flatNode)
-  //           : boldLabelModel === 'parent'
-  //             ? flatNode.isParent
-  //             : true
-  //
-  //     const isExpanded = expanded.includes(node.id)
-  //
-  //     const isEmptyRootNode = flatNode.treeDepth === 1 && flatNode.children && flatNode.children.length > 0
-  //
-  //     if (!parentExpanded) {
-  //       return null
-  //     }
-  //
-  //     if (isEmptyRootNode && hideEmptyRootNode) {
-  //       return null
-  //     }
-  //
-  //     return (
-  //       <TreeNode
-  //         key={key}
-  //         checked={flatNode.checkState}
-  //         expandOnClick={expandOnClick}
-  //         checkOnClick={checkOnClick}
-  //         isExpanded={isExpanded}
-  //         isLeaf={flatNode.isLeaf || flatNode?.children.length === 0}
-  //         isParent={flatNode.isParent}
-  //         label={node.label}
-  //         showCheckbox={showCheckbox}
-  //         nodeId={nodeId}
-  //         onCheck={onCheckHandler}
-  //         onClick={onClickHandler}
-  //         onExpand={onExpandHandler}
-  //         expandIcon={defaultExpandIcon}
-  //         collapseIcon={defaultCollapseIcon}
-  //         noHoverStyle={noHoverStyle}
-  //         depth={flatNode.treeDepth}
-  //         selected={selectedNodeId === nodeId || initialSelected === node.id}
-  //         isBoldLabel={isBoldLabel}
-  //         selectable={isSelectable(flatNode)}
-  //         customSelectStyle={customSelectStyle}
-  //         showChildrenCount={showChildrenCount}
-  //         getChildrenCount={getChildrenCount}
-  //         itemHeight={itemHeight}
-  //         isCurrentCursor={cursor === node.id}
-  //         disableCheckboxesOfNoLeaf={disableCheckboxesOfNoLeaf && !node.hasChildType}
-  //       >
-  //         {children}
-  //       </TreeNode>
-  //     )
-  //   })
-  //
-  //   return (
-  //   )
-  // }
-
   return (
-    <ul ref={ref} className={className} style={{ minWidth: '100%', width: 'max-content' }}>
+    <ul className={className} ref={ref}>
       {treeNodes}
     </ul>
   )

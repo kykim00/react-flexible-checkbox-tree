@@ -1,8 +1,6 @@
-import { TNode } from './types.ts'
+import { TNode, NodeId } from './types'
 
-type CreateNodesInputNode = Exclude<TNode, 'value'>
-
-interface CreateNodesParams<T extends CreateNodesInputNode, U extends CreateNodesInputNode> {
+interface CreateNodesParams<T extends TNode, U extends TNode> {
   /** 부모 노드가 될 데이터 배열 (ex. 조직) */
   parents: T[]
   /** 자식 노드가 될 데이터 배열 (ex. 직원) */
@@ -15,15 +13,15 @@ interface CreateNodesParams<T extends CreateNodesInputNode, U extends CreateNode
   parentToChildKey?: keyof U
   /** 출력 순서 */
   printChildFirst?: boolean
-  /** 노드의 id 와 부모 노드 id 를 조합하여 unique 한 id 를 자동 생성. 기본값 true. */
+  /** 노드의 id 와 부모 노드 id 를 조합하여 unique 한 id 인 node.value 값을 자동 생성. 기본값 true. */
   enableUniqueId?: boolean
 }
 
-function parseValue<T extends CreateNodesInputNode>(node: T, parentKey: keyof T, enableUniqueId = true) {
-  return enableUniqueId ? `${node.id}_${node[parentKey] ?? ''}` : String(node.id)
+function parseValue<T extends TNode>(node: T, parentKey: keyof T, enableUniqueId = true) {
+  return enableUniqueId ? `${node.id}_${node[parentKey] ?? ''}` : node.id
 }
 
-export const createNodes = <T extends CreateNodesInputNode, U extends CreateNodesInputNode>({
+export const createNodes = <T extends TNode, U extends TNode>({
   parents,
   children,
   parentKey,
@@ -32,14 +30,16 @@ export const createNodes = <T extends CreateNodesInputNode, U extends CreateNode
   printChildFirst = false,
   enableUniqueId = true,
 }: CreateNodesParams<T, U>): TNode[] => {
-  const tree: { [key: string]: TNode } = {}
+  const tree: { [key: NodeId]: TNode } = {}
   const rootNodes: TNode[] = []
 
   for (const parent of parents) {
     const node: TNode = {
       ...parent,
-      value: parseValue(parent, parentKey, enableUniqueId),
+      nodeType: 'parent',
       children: [],
+      hasChildType: false,
+      value: parseValue(parent, parentKey, enableUniqueId),
     }
 
     tree[parent.id] = node
@@ -49,8 +49,10 @@ export const createNodes = <T extends CreateNodesInputNode, U extends CreateNode
       if (!(parentGroupId in tree)) {
         tree[parentGroupId] = {
           ...parent,
-          value: parseValue(parent, parentGroupId, enableUniqueId),
+          nodeType: 'parent',
           children: [],
+          hasChildType: false,
+          value: parseValue(parent, parentGroupId, enableUniqueId),
         }
       }
       tree[parentGroupId].children?.push(node)
@@ -60,10 +62,16 @@ export const createNodes = <T extends CreateNodesInputNode, U extends CreateNode
   }
 
   if (children) {
-    const childrenTree: { [key: string]: TNode } = {}
+    const childrenTree: { [key: NodeId]: TNode } = {}
 
     for (const child of children) {
-      childrenTree[child.id] = { ...child, children: [], value: parseValue(child, parentToChildKey || 'no-item', enableUniqueId) }
+      childrenTree[child.id] = {
+        ...child,
+        nodeType: 'children',
+        children: [],
+        hasChildType: true,
+        value: parseValue(child, parentToChildKey || 'no-item', enableUniqueId), // value: ${child.id} or ${child.id}_${parent.id}
+      }
 
       if (parentToChildKey && child[parentToChildKey] in tree) {
         const parentTypeFirstIndex =
@@ -83,14 +91,52 @@ export const createNodes = <T extends CreateNodesInputNode, U extends CreateNode
         if (!(parentIdOfChild in childrenTree)) {
           childrenTree[parentIdOfChild] = {
             ...child,
-            value: parseValue(child, parentIdOfChild, enableUniqueId),
+            nodeType: 'children',
             children: [],
+            hasChildType: true,
+            value: parseValue(child, parentIdOfChild, enableUniqueId),
           }
         }
         childrenTree[parentIdOfChild].children?.push(childrenTree[child.id])
       }
     }
   }
+
+  const updateHasChildType = (nodes: TNode[]): void => {
+    const stack: TNode[] = [...nodes]
+    const visited: Set<NodeId> = new Set()
+
+    while (stack.length > 0) {
+      const node = stack[stack.length - 1]
+
+      if (visited.has(node.id)) {
+        stack.pop()
+        continue
+      }
+
+      let allChildrenVisited = true
+      for (const child of node.children || []) {
+        if (!visited.has(child.id)) {
+          stack.push(child)
+          allChildrenVisited = false
+        }
+      }
+
+      if (allChildrenVisited) {
+        visited.add(node.id)
+        node.hasChildType = node.nodeType === 'children' || (node.children || []).some((child) => child.hasChildType)
+
+        if (node.hasChildType && node.parent_node_id) {
+          const parent = nodes.find((n) => n.id === node.parent_node_id)
+          if (parent && !visited.has(parent.id)) {
+            stack.push(parent)
+          }
+        }
+      }
+    }
+  }
+
+  updateHasChildType(rootNodes)
 
   return rootNodes
 }

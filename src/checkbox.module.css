@@ -1,0 +1,32 @@
+.checkbox {
+    position: relative;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    accent-color: #1A73E8;  /** Material Design */
+
+    &:not(:disabled) {
+        cursor: pointer
+    }
+
+    &[data-indeterminate="true"] {
+        border: none;
+        background: #1A73E8;
+
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+
+        &::after {
+            display: inline-block;
+            content: "";
+            position: absolute;
+            width: 8px;
+            height: 2px;
+            background-color: #fff;
+            top: 6px;
+            left: 3px;
+        }
+    }
+}

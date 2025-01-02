@@ -1,19 +1,21 @@
 import { CSSProperties, ReactNode, RefObject } from 'react'
-import NodeModel from './NodeModel.ts'
+import { TreeController } from './useTree'
 
 export type CheckModel = 'leaf' | 'all'
 
+export type NodeId = number | string
+
 export type TNode = {
-  id: number | string
+  id: NodeId
   label: string
   type?: string
-  value: string
   children?: Array<TNode>
   showCheckbox?: boolean
+  // createNodes로 tree 생성하는 경우 자동 생성
+  nodeType?: 'parent' | 'children'
+
   [key: string]: any
 }
-
-export type TreeNodeData = TNode
 
 export type FlatNode = {
   parent: FlatNode
@@ -26,6 +28,8 @@ export type FlatNode = {
   children: FlatNode[]
   checked: boolean
   checkState: 0 | 1 | 2
+  value: NodeId
+
   [key: string]: any
 } & TNode
 
@@ -35,64 +39,49 @@ type PositiveInteger<T extends number> = `${T}` extends `-${any}` | `${any}.${an
 
 export type TreeProps<T extends number> = {
   nodes: TNode[]
-  checked?: number[]
+  checked?: NodeId[]
   checkModel?: CheckModel
-  customCheckModel?: string
   onlyLeafCheckboxes?: boolean
-  initialExpanded?: number[]
-  initialSelected?: number
+  initialExpanded?: NodeId[]
+  initialSelected?: NodeId
   forceExpand?: boolean | PositiveInteger<T>
-  onCheck?: (checked: number[], checkedNodeInfos: NodeInfo[]) => void
-  onClick?: (nodeId: number, nodeInfo: TNode) => void
-  onExpand?: (nodeId: number, expandedNodeIds: number[]) => void
+  onCheck?: (checked: NodeId[], checkedNodeInfos: NodeInfo[]) => void
+  onSelect?: (nodeId: NodeId, nodeInfo: TNode) => void
+  onExpand?: (nodeId: NodeId, expandedNodeIds: NodeId[]) => void
   expandOnClick?: boolean
   checkOnClick?: boolean
   showChildrenCount?: boolean
   defaultCollapseIcon?: ReactNode
   defaultExpandIcon?: ReactNode
   noCheckboxes?: boolean
-  noHoverStyle?: boolean
   selectable?: boolean | ((node: FlatNode) => boolean)
   customSelectStyle?: CSSProperties
   boldLabelModel?: 'parent' | 'all' | PositiveInteger<T> | ((nodeInfo: TNode) => boolean)
   hideEmptyRootNode?: boolean
   hideCheckboxEmptyNode?: boolean
   itemHeight?: number
-  useKeyboardNavigation?: boolean
+  // useKeyboardNavigation?: boolean
   outerRef?: RefObject<HTMLDivElement>
   disableCheckboxesOfNoLeaf?: boolean
 } & { className?: string }
 
 export type TreeNodeProps = {
-  model: NodeModel<number>
-  node: TNode
+  nodeId: NodeId
+  controller: TreeController
   flatNodes: { [key: string]: FlatNode }
-  getStyles: (node: FlatNode) => CSSProperties
-  parentId: number | null
-  nodeId: string
-  label: ReactNode
-  checked?: number
-  isExpanded?: boolean
-  isLeaf?: boolean
-  isParent?: boolean
-  onCheck?: (nodeInfo: { id: string; checked: boolean }) => void
-  onExpand?: (nodeId: string) => void
-  onClick?: (nodeId: string) => void
-  children?: ReactNode
-  selected?: boolean
+  onCheck?: (nodeId: NodeId) => void
+  onExpand?: (nodeId: NodeId) => void
+  onClick?: (nodeId: NodeId) => void
   expandOnClick?: boolean
   checkOnClick?: boolean
-  showCheckbox?: boolean
   expandIcon?: ReactNode
   collapseIcon?: ReactNode
-  noHoverStyle?: boolean
   depth?: number
-  isBoldLabel?: boolean
-  selectable?: boolean
+  isBoldLabel?: (node: FlatNode) => boolean
+  isSelectable?: (node: FlatNode) => boolean
   customSelectStyle?: CSSProperties
   showChildrenCount?: boolean
-  getChildrenCount?: (nodeId: string) => number
   itemHeight?: number
-  isCurrentCursor?: boolean
+  isShowCheckbox?: (node: FlatNode) => boolean
   disableCheckboxesOfNoLeaf?: boolean
 }

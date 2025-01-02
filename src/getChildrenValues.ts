@@ -1,9 +1,10 @@
-import type { TreeNodeData } from '../types.ts'
-import { memoizedFlattenNodes } from './flattenNodes.ts'
+import { TNode, NodeId } from './types'
+import { memoizedFlattenNodes } from './flattenNodes'
 
-export function findTreeNode(value: string, data: TreeNodeData[]): TreeNodeData | null {
+export function findTreeNode(value: NodeId, data: TNode[]): TNode | null {
   for (const node of data) {
-    if (node.value === value) {
+    const nodeValue = node.value || node.id
+    if (nodeValue === value) {
       return node
     }
 
@@ -18,43 +19,46 @@ export function findTreeNode(value: string, data: TreeNodeData[]): TreeNodeData 
   return null
 }
 
-export function getChildrenNodesValues(value: string, data: TreeNodeData[], acc: string[] = []): string[] {
+export function getChildrenNodesValues(value: NodeId, data: TNode[], acc: NodeId[] = []): NodeId[] {
   const node = findTreeNode(value, data)
+
   if (!node) {
     return acc
   }
 
+  const nodeValue = node.value || node.id
+
   if (!Array.isArray(node.children) || node.children.length === 0) {
-    return [node.value]
+    return [nodeValue]
   }
 
   node.children.forEach((child) => {
     if (Array.isArray(child.children) && child.children.length > 0) {
-      getChildrenNodesValues(child.value, data, acc)
+      getChildrenNodesValues(child.value || child.id, data, acc)
     } else {
-      acc.push(child.value)
+      acc.push(child.value || child.id)
     }
   })
 
   return acc
 }
 
-export function getAllChildrenNodes(data: TreeNodeData[]) {
+export function getAllChildrenNodes(data: TNode[]) {
   return data.reduce((acc, node) => {
     if (Array.isArray(node.children) && node.children.length > 0) {
       acc.push(...getAllChildrenNodes(node.children))
     } else {
-      acc.push(node.value)
+      acc.push(node.value || node.id)
     }
 
     return acc
   }, [] as string[])
 }
 
-export function getAllLeafNodes(data: TreeNodeData[]) {
-  const flatNodes = memoizedFlattenNodes(data)
+export function getAllLeafNodes(data: TNode[]) {
+  const flatNodes = memoizedFlattenNodes({ nodes: data })
 
   return Object.values(flatNodes)
     .filter((node) => !node.children || !node.children.length)
-    .map((node) => node.value)
+    .map((node) => node.value || node.id)
 }

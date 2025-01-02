@@ -1,4 +1,4 @@
-import type { TreeNodeData } from '../types.ts'
+import type { TreeNodeData } from './types.ts'
 
 export interface CheckedNodeStatus {
   checked: boolean

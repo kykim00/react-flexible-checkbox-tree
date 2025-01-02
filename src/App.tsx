@@ -1,7 +1,7 @@
-import { generateRandomData } from './utils/generateRandomData.ts'
+import { generateRandomData } from './generateRandomData.ts'
 import { createNodes } from './createNodes.ts'
-import { Tree2 } from './Tree2.tsx'
 import { useState } from 'react'
+import { Tree } from './Tree.tsx'
 
 const data = generateRandomData(10000)
 
@@ -16,7 +16,7 @@ function App() {
   return (
     <div>
       <button onClick={() => setForceExpand(2)}>2 depth 까지 expand</button>
-      <Tree2 nodes={nodes} forceExpand={forceExpand} />
+      <Tree nodes={nodes} forceExpand={forceExpand} />
     </div>
   )
 }

@@ -1,30 +1,26 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckedNodeStatus, getAllCheckedNodes } from './utils/checkHandler.ts'
-import type { TreeNodeData } from './types'
-import { getChildrenNodesValues, getAllChildrenNodes, getAllLeafNodes } from './utils/getChildrenValues.ts'
-import { memoizedFlattenNodes } from './utils/flattenNodes.ts'
+import { CheckedNodeStatus, getAllCheckedNodes } from './getAllCheckedNodes'
+import { CheckModel, TNode, NodeId } from './types'
+import { getChildrenNodesValues, getAllChildrenNodes, getAllLeafNodes } from './getChildrenValues'
+import { memoizedFlattenNodes } from './flattenNodes'
 
 export type TreeExpandedState = Record<string, boolean>
 
-function getInitialTreeExpandedState(
-  initialState: TreeExpandedState,
-  data: TreeNodeData[],
-  value: string | undefined,
-  acc: TreeExpandedState = {},
-): TreeExpandedState {
+function getInitialTreeExpandedState(initialExpanded: NodeId[], data: TNode[], acc: TreeExpandedState = {}): TreeExpandedState {
   data.forEach((node) => {
-    acc[node.value] = node.value in initialState ? initialState[node.value] : node.value === value
+    const id = node.value || node.id
+    acc[id] = initialExpanded.includes(id)
 
     if (Array.isArray(node.children)) {
-      getInitialTreeExpandedState(initialState, node.children, value, acc)
+      getInitialTreeExpandedState(initialExpanded, node.children, acc)
     }
   })
 
   return acc
 }
 
-function getInitialCheckedState(initialState: string[], data: TreeNodeData[]): string[] {
-  const acc: string[] = []
+function getInitialCheckedState(initialState: NodeId[], data: TNode[]): NodeId[] {
+  const acc: NodeId[] = []
 
   initialState.forEach((node) => acc.push(...getChildrenNodesValues(node, data)))
 
@@ -33,88 +29,82 @@ function getInitialCheckedState(initialState: string[], data: TreeNodeData[]): s
 
 export interface UseTreeInput {
   /** 초기 확장된 노드 상태 */
-  initialExpandedState?: TreeExpandedState
+  initialExpandedState?: NodeId[]
   /** 초기 선택된 노드 값 */
-  initialSelectedState?: string
+  initialSelectedState?: NodeId | null
   /** 초기 체크된 노드 상태 */
-  initialCheckedState?: string[]
+  initialCheckedState?: NodeId[]
   /** 노드 확장 시 콜백 */
-  onNodeExpand?: (value: string) => void
+  onNodeExpand?: (value: NodeId) => void
   /** 노드 축소 시 콜백 */
-  onNodeCollapse?: (value: string) => void
-  /** 체크 시 부모 노드를 checkedState에 포함할지 여부 */
-  includeParentInCheckedState?: boolean
+  onNodeCollapse?: (value: NodeId) => void
+  /** checked 에 포함될 수 있는 노드를 지정하는 값. 'leaf', 'all' 이 올 수 있다. 기본값은 'leaf' */
+  checkModel?: CheckModel
 }
 
 export interface UseTreeReturnType {
   /** 확장된 노드 상태 */
   expandedState: TreeExpandedState
   /** 선택된 노드 값 */
-  selectedState: string
+  selectedState?: NodeId | null
   /** 체크된 노드 값 배열 */
-  checkedState: string[]
+  checkedState: NodeId[]
 
   /** 트리 데이터 초기화 */
-  initialize: (data: TreeNodeData[]) => void
+  initialize: (data: TNode[], forceExpand?: number | boolean) => void
   /** 노드 확장/축소 토글 */
-  toggleExpanded: (value: string) => void
+  toggleExpanded: (value: NodeId) => void
   /** 노드 축소 */
-  collapse: (value: string) => void
+  collapse: (value: NodeId) => void
   /** 노드 확장 */
-  expand: (value: string) => void
+  expand: (value: NodeId) => void
   /** 노드 일부 확장 */
-  expandToLevel: (level: number | boolean) => void
+  expandToLevel: (level: number | boolean, data: TNode[] | undefined, expandedState: TreeExpandedState) => void
   /** 모든 노드 확장 */
   expandAllNodes: () => void
   /** 모든 노드 축소 */
   collapseAllNodes: () => void
-  /** 확장된 노드 상태 설정 */
-  setExpandedState: React.Dispatch<React.SetStateAction<TreeExpandedState>>
 
   /** 노드 선택 */
-  select: (value: string) => void
+  select: (value: NodeId) => void
   /** 노드 선택 해제 */
-  deselect: (value: string) => void
-  /** 선택된 노드 상태 설정 */
-  setSelectedState: React.Dispatch<React.SetStateAction<string>>
+  deselect: (value: NodeId) => void
 
   /** 노드 체크 */
-  checkNode: (value: string) => void
+  checkNode: (value: NodeId) => NodeId[]
   /** 노드 체크 해제 */
-  uncheckNode: (value: string) => void
+  uncheckNode: (value: NodeId) => NodeId[]
   /** 모든 노드 체크 */
   checkAllNodes: () => void
   /** 모든 노드 체크 해제 */
   uncheckAllNodes: () => void
-  /** 체크된 노드 상태 설정 */
-  setCheckedState: React.Dispatch<React.SetStateAction<string[]>>
 
   /** 체크된 노드 정보 */
   checkedNodeStatus: CheckedNodeStatus[]
   /** 노드 체크 여부 확인 */
-  isNodeChecked: (value: string) => boolean
+  isNodeChecked: (value: NodeId) => boolean
   /** 노드 부분 체크 여부 확인 */
-  isNodeIndeterminate: (value: string) => boolean
+  isNodeIndeterminate: (value: NodeId) => boolean
 }
 
 export function useTree({
-  initialSelectedState,
+  initialSelectedState = null,
   initialCheckedState = [],
-  initialExpandedState = {},
+  initialExpandedState = [],
   onNodeCollapse,
   onNodeExpand,
-  includeParentInCheckedState,
+  checkModel,
 }: UseTreeInput = {}): UseTreeReturnType {
-  const [data, setData] = useState<TreeNodeData[]>([])
-  const [expandedState, setExpandedState] = useState<TreeExpandedState>(initialExpandedState)
-  const [selectedState, setSelectedState] = useState<string>(initialSelectedState || '')
-  const [checkedState, setCheckedState] = useState<string[]>(initialCheckedState)
+  const [data, setData] = useState<TNode[]>([])
+  const [expandedState, setExpandedState] = useState<TreeExpandedState>({})
+  const [selectedState, setSelectedState] = useState<NodeId | null>(initialSelectedState)
+  const [checkedState, setCheckedState] = useState<NodeId[]>(initialCheckedState)
 
   const initialize = useCallback(
-    (_data: TreeNodeData[], forceExpand: number | boolean) => {
+    (_data: TNode[], forceExpand?: number | boolean) => {
       setCheckedState((current) => getInitialCheckedState(current, _data))
       setData(_data)
-      const initialTreeExpandedState = getInitialTreeExpandedState(initialExpandedState, _data, selectedState)
+      const initialTreeExpandedState = getInitialTreeExpandedState(initialExpandedState, _data)
 
       forceExpand ? expandToLevel(forceExpand, _data, initialTreeExpandedState) : setExpandedState(initialTreeExpandedState)
     },
@@ -122,7 +112,7 @@ export function useTree({
   )
 
   const toggleExpanded = useCallback(
-    (value: string) => {
+    (value: NodeId) => {
       setExpandedState((current) => {
         const nextState = { ...current, [value]: !current[value] }
         nextState[value] ? onNodeExpand?.(value) : onNodeCollapse?.(value)
@@ -133,7 +123,7 @@ export function useTree({
   )
 
   const collapse = useCallback(
-    (value: string) => {
+    (value: NodeId) => {
       setExpandedState((current) => {
         if (current[value] !== false) {
           onNodeCollapse?.(value)
@@ -145,7 +135,7 @@ export function useTree({
   )
 
   const expand = useCallback(
-    (value: string) => {
+    (value: NodeId) => {
       setExpandedState((current) => {
         if (current[value] !== true) {
           onNodeExpand?.(value)
@@ -156,18 +146,18 @@ export function useTree({
     [onNodeExpand],
   )
 
-  const expandToLevel = useCallback((level: number | boolean, _data = data, _expandedState = expandedState) => {
+  const expandToLevel = useCallback((level: number | boolean, _data = data, _expandedState: TreeExpandedState) => {
     if (level === true) {
-      expandAllNodes()
+      setExpandedState(Object.fromEntries(Object.entries(_expandedState).map(([id]) => [id, true])))
       return
     }
 
     if (!level) {
-      collapseAllNodes()
+      setExpandedState(Object.fromEntries(Object.entries(_expandedState).map(([id]) => [id, false])))
       return
     }
 
-    const flatNodes = memoizedFlattenNodes(_data)
+    const flatNodes = memoizedFlattenNodes({ nodes: _data })
     const targetNodes = Object.values(flatNodes).filter((node) => node.treeDepth <= level)
 
     const next = { ..._expandedState }
@@ -198,7 +188,7 @@ export function useTree({
     })
   }, [])
 
-  const select = useCallback((value: string) => {
+  const select = useCallback((value: NodeId) => {
     setSelectedState(value)
   }, [])
 
@@ -207,34 +197,37 @@ export function useTree({
   }, [])
 
   const checkNode = useCallback(
-    (value: string) => {
+    (value: NodeId) => {
       const checkedNodes = getChildrenNodesValues(value, data)
-      setCheckedState((current) => {
-        const newCheckedState = Array.from(new Set([...current, ...checkedNodes]))
-        if (includeParentInCheckedState) {
-          newCheckedState.push(value) // 부모 노드도 checkedState에 포함
-        }
-        return newCheckedState
-      })
+
+      const newCheckedState = Array.from(new Set([...checkedState, ...checkedNodes]))
+
+      if (checkModel === 'all') {
+        newCheckedState.push(value) // 부모 노드도 checkedState에 포함
+      }
+      setCheckedState(newCheckedState)
+      return newCheckedState
     },
-    [data, includeParentInCheckedState],
+    [data, checkModel, checkedState],
   )
 
   const uncheckNode = useCallback(
-    (value: string) => {
+    (value: NodeId) => {
       const checkedNodes = getChildrenNodesValues(value, data)
-      setCheckedState((current) => current.filter((item) => !checkedNodes.includes(item)))
+      const newCheckedState = checkedState.filter((item) => !checkedNodes.includes(item))
+      setCheckedState(newCheckedState)
+      return newCheckedState
     },
-    [data],
+    [data, checkedState],
   )
 
   const checkAllNodes = useCallback(() => {
-    if (includeParentInCheckedState) {
+    if (checkModel === 'all') {
       setCheckedState(() => getAllChildrenNodes(data))
     } else {
       setCheckedState(() => getAllLeafNodes(data))
     }
-  }, [data, includeParentInCheckedState])
+  }, [data, checkModel])
 
   const uncheckAllNodes = useCallback(() => {
     setCheckedState([])
@@ -243,12 +236,12 @@ export function useTree({
   const checkedNodeStatus = useMemo(() => getAllCheckedNodes(data, checkedState).result, [data, checkedState])
 
   const _isNodeChecked = useCallback(
-    (value: string) => checkedNodeStatus.find((checkedNode) => checkedNode.value === value)?.checked || false,
+    (value: NodeId) => checkedNodeStatus.find((checkedNode) => checkedNode.value === value)?.checked || false,
     [data, checkedState],
   )
 
   const _isNodeIndeterminate = useCallback(
-    (value: string) => checkedNodeStatus.find((checkedNode) => checkedNode.value === value)?.indeterminate || false,
+    (value: NodeId) => checkedNodeStatus.find((checkedNode) => checkedNode.value === value)?.indeterminate || false,
     [data, checkedState],
   )
 
@@ -264,17 +257,14 @@ export function useTree({
     expandToLevel,
     expandAllNodes,
     collapseAllNodes,
-    setExpandedState,
 
     select,
     deselect,
-    setSelectedState,
 
     checkNode,
     uncheckNode,
     checkAllNodes,
     uncheckAllNodes,
-    setCheckedState,
 
     checkedNodeStatus,
     isNodeChecked: _isNodeChecked,
@@ -282,4 +272,4 @@ export function useTree({
   }
 }
 
-export type TreeController = ReturnType<typeof useTree>
+export type TreeController = UseTreeReturnType
